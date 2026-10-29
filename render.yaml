@@ -1,0 +1,26 @@
+# Render Blueprint: one web service runs the API, the live board and the website.
+services:
+  - type: web
+    name: maison-lilac
+    runtime: node
+    plan: free            # change to starter to keep it awake all day
+    buildCommand: npm install --prefix client --include=dev && npm run build --prefix client && npm install --prefix server
+    startCommand: npm start --prefix server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true       # Render makes a long random secret for you
+      - key: MONGODB_URI
+        sync: false               # you paste your Atlas connection string
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: TZ
+        sync: false               # the salon's timezone, for example Indian/Maldives or Europe/London
+      - key: SHOW_DEV_CODE
+        value: "true"             # demo only: shows sign-in codes on screen. Remove once SMS works.
