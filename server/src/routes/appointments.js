@@ -5,6 +5,7 @@ import { Appointment, Block, Counter, Service, Stylist, User } from '../models.j
 import { need } from '../middleware.js';
 import { OPEN, CLOSE, STEP, DEP_MIN, DEP_PCT, MAX_DAYS_AHEAD, isoDate, validDate, isSunday, nowMinutes, daysFromToday } from '../config.js';
 import { todayQueue, eta, broadcast } from '../lib/queue.js';
+import { notify, notifyStaff, fmt, tok, longDate } from '../lib/notify.js';
 
 const r = Router();
 const oid = mongoose.isValidObjectId;
@@ -91,11 +92,13 @@ r.post('/', need(), async (req, res) => {
     // Atomic counter: every booking for a date gets the next number, with no duplicates.
     const { seq: token } = await Counter.findOneAndUpdate({ _id: `token:${date}` }, { $inc: { seq: 1 } }, { upsert: true, new: true });
     const appt = await Appointment.create({
-      _id: apptId, customer: user?._id, customerName: walkIn ? name : user.name, phone: walkIn ? (phone || '') : user.phone,
+      _id: apptId, customer: user?._id, customerName: walkIn ? name : user.name, phone: walkIn ? (phone || '') : user.phone, email: walkIn ? '' : user.email,
       service: svc._id, stylist: chosen._id, date, start, dur: svc.minutes, token,
       depositAmount: svc.minutes >= DEP_MIN ? Math.round(svc.price * DEP_PCT) : 0,
     });
     await broadcast(req.app, date);
+    if (user) notify(req.app, user._id, { kind: 'booked', title: 'Booking confirmed', body: `${svc.name} with ${chosen.name} on ${longDate(date)} at ${fmt(start)}. Your token is ${tok(token)}.` + (appt.depositAmount ? ` A deposit of $${appt.depositAmount} is due to confirm it.` : '') });
+    notifyStaff(req.app, { kind: 'staff-booked', title: 'New booking', body: `${appt.customerName}: ${svc.name} with ${chosen.name} on ${longDate(date)} at ${fmt(start)} (token ${tok(token)}).` }, req.user.id);
     res.status(201).json({ ...appt.toObject(), serviceName: svc.name, stylistName: chosen.name });
   } catch (e) {
     await Block.deleteMany({ appointment: apptId }); // never leave a time locked by a failed booking
@@ -141,6 +144,11 @@ r.patch('/:id/cancel', need(), async (req, res) => {
   await a.save();
   await Block.deleteMany({ appointment: a._id });
   await broadcast(req.app, a.date);
+  if (!isStaff(req.user)) {
+    await a.populate('service');
+    notifyStaff(req.app, { kind: 'staff-cancelled', title: 'Customer cancelled', body: `${a.customerName} cancelled ${a.service?.name || 'an appointment'} on ${longDate(a.date)} at ${fmt(a.start)} (token ${tok(a.token)}). That time is free again.` });
+  }
+  if (a.customer && String(a.customer) !== req.user.id) notify(req.app, a.customer, { kind: 'cancelled', title: 'Appointment cancelled', body: `Your appointment on ${longDate(a.date)} at ${fmt(a.start)} (token ${tok(a.token)}) was cancelled by the salon. Please book a new time.` });
   res.json({ ok: true });
 });
 
@@ -149,6 +157,7 @@ r.patch('/:id/deposit-paid', need('staff', 'admin'), async (req, res) => {
   const a = await Appointment.findByIdAndUpdate(req.params.id, { depositPaid: true }, { new: true });
   if (!a) return res.status(404).json({ error: 'Not found.' });
   await broadcast(req.app, a.date);
+  if (a.customer) notify(req.app, a.customer, { kind: 'deposit', title: 'Deposit received', body: `Thank you. Your deposit for ${longDate(a.date)} at ${fmt(a.start)} (token ${tok(a.token)}) is confirmed.` });
   res.json({ ok: true });
 });
 

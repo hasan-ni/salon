@@ -30,6 +30,7 @@ export default function Staff() {
         </div>
       </div>
       <p className="err" role="alert">{err}</p>
+      <p className="muted">Tip: open Messages and turn on phone alerts to hear about new bookings and cancellations.</p>
 
       <section className="step">
         <div className="toolbar">
@@ -45,7 +46,7 @@ export default function Staff() {
               <div className="t">{fmt(a.start)}</div>
               <div className="m">
                 <strong>{a.customerName}</strong> · {a.serviceName}
-                <span>{tok(a.token)} · {a.stylistName} · until {fmt(a.start + a.dur)} · {a.phone} · {a.status}
+                <span>{tok(a.token)} · {a.stylistName} · until {fmt(a.start + a.dur)} · {a.phone || a.email || 'no contact'} · {a.status}
                   {a.depositAmount > 0 ? (a.depositPaid ? ' · Deposit paid' : ` · Deposit $${a.depositAmount} due`) : ''}</span>
                 <span className="acts">
                   {digits && <a className="ghost sm" target="_blank" rel="noopener noreferrer" href={`https://wa.me/${digits}?text=${m}`}>WhatsApp reminder</a>}
