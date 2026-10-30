@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api.js';
+import { socket } from './socket.js';
+import Bell from './components/Bell.jsx';
+import { disablePush } from './push.js';
 import Home from './pages/Home.jsx';
 import Login from './pages/Login.jsx';
 import Book from './pages/Book.jsx';
@@ -27,7 +30,9 @@ export default function App() {
   const nav = useNavigate();
   const loc = useLocation();
   useEffect(() => { api('/auth/me').then((d) => setUser(d.user)).finally(() => setReady(true)); }, []);
-  const logout = async () => { await api('/auth/logout', { method: 'POST' }); setUser(null); nav('/'); };
+  // The live connection reads the login cookie when it connects, so reconnect when someone signs in or out.
+  useEffect(() => { socket.disconnect(); socket.connect(); }, [user?.id]);
+  const logout = async () => { await disablePush().catch(() => {}); /* stop this device getting the old account's alerts */ await api('/auth/logout', { method: 'POST' }); setUser(null); nav('/'); };
   const isStaff = user && ['staff', 'admin'].includes(user.role);
 
   return (
@@ -42,6 +47,7 @@ export default function App() {
                 <NavLink to="/" end>Home</NavLink>
                 <NavLink to="/book">Book</NavLink>
                 {isStaff && <NavLink to="/staff">Staff</NavLink>}
+                {user && <Bell />}
                 {user ? <button className="ghost sm" onClick={logout}>Sign out ({user.name})</button> : <NavLink to="/login">Sign in</NavLink>}
               </nav>
             </header>

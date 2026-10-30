@@ -23,3 +23,11 @@ export async function notify(app, userId, { kind, title, body }) {
     }
   } catch (e) { console.error('Notification failed:', e.message); }
 }
+
+// Tells the salon team (every staff and admin account) about something, except the person who did it.
+export async function notifyStaff(app, { kind, title, body }, excludeId) {
+  try {
+    const staff = await User.find({ role: { $in: ['staff', 'admin'] } }).select('_id').lean();
+    await Promise.all(staff.filter((s) => String(s._id) !== String(excludeId)).map((s) => notify(app, s._id, { kind, title, body })));
+  } catch (e) { console.error('Staff notification failed:', e.message); }
+}

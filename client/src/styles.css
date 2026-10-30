@@ -133,3 +133,19 @@ nav a,.opt,.day,.slot,.svc,.chips button,.ghost,.cta{transition:background-color
 .confirm .sum{margin:0 0 6px}.confirm .cta{margin-top:0}
 
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* ---------- In-app messages ---------- */
+.bell{position:relative}
+.badge{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:.75rem;font-weight:700}
+.panel{position:absolute;right:0;top:calc(100% + 8px);width:min(360px,88vw);max-height:60vh;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px 14px;box-shadow:0 10px 30px rgba(42,27,61,.2);z-index:20}
+.msg{padding:10px 0;border-top:1px solid var(--line)}
+.msg:first-child{border-top:0}
+.msg p{margin:2px 0 4px;font-size:.92rem}
+.msg small{color:var(--muted)}
+.msg.new{border-left:3px solid var(--accent);padding-left:10px}
+.toast{position:fixed;right:16px;bottom:16px;max-width:320px;display:flex;flex-direction:column;gap:2px;background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);z-index:30}
+.toast span{font-size:.92rem;opacity:.9}
+
+.alerts{padding:10px 0;font-size:.9rem;display:flex;flex-direction:column;gap:6px;border-bottom:1px solid var(--line)}
+.alerts:empty{display:none}
+.link{background:none;border:0;padding:0;color:var(--accent);font:inherit;text-decoration:underline;cursor:pointer}

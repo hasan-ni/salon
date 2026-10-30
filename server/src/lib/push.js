@@ -22,7 +22,7 @@ export async function sendPush(userId, { kind, title, body }) {
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } },
-        JSON.stringify({ title, body, kind, url: '/book' }),
+        JSON.stringify({ title, body, kind, url: String(kind || '').startsWith('staff') ? '/staff' : '/book' }),
         { TTL: urgent ? 600 : 12 * 3600, urgency: urgent ? 'high' : 'normal' },
       );
     } catch (e) {
