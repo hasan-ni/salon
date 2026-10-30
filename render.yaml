@@ -24,3 +24,23 @@ services:
         sync: false               # the salon's timezone, for example Indian/Maldives or Europe/London
       - key: SHOW_DEV_CODE
         value: "true"             # demo only: shows sign-in codes on screen. Remove once SMS works.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: WHATSAPP_NUMBER
+        sync: false
+      - key: WHATSAPP_PHONE_ID
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false

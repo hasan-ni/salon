@@ -42,6 +42,9 @@ const apptSchema = new Schema({
   status: { type: String, enum: ['booked', 'serving', 'done', 'cancelled', 'noshow'], default: 'booked' },
   depositAmount: { type: Number, default: 0 },
   depositPaid: { type: Boolean, default: false },
+  email: String,
+  remindDay: { type: Boolean, default: false },   // day-before reminder already sent
+  remindSoon: { type: Boolean, default: false },  // two-hour reminder already sent
 }, { timestamps: true });
 apptSchema.index({ date: 1, token: 1 });
 export const Appointment = model('Appointment', apptSchema);
@@ -50,3 +53,39 @@ export const Appointment = model('Appointment', apptSchema);
 export const Counter = model('Counter', new Schema({ _id: String, seq: { type: Number, default: 0 } }));
 // "Now serving" number per day: _id is the date.
 export const Board = model('Board', new Schema({ _id: String, serving: { type: Number, default: 0 } }));
+
+// One pending "sign in with WhatsApp" attempt. Expires after 10 minutes (TTL index).
+// The browser keeps a secret; only its hash is stored here.
+export const LoginChallenge = model('LoginChallenge', new Schema({
+  secretHash: { type: String, index: true },
+  code: { type: String, index: true },
+  name: String,
+  phone: String,
+  verified: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now, expires: 600 },
+}));
+
+// A phone or browser that has agreed to receive alerts for a customer.
+export const PushSub = model('PushSub', new Schema({
+  user: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+  endpoint: { type: String, unique: true },
+  keys: { p256dh: String, auth: String },
+}, { timestamps: true }));
+
+// One-time email sign-in codes, valid for 5 minutes.
+export const EmailOtp = model('EmailOtp', new Schema({
+  email: { type: String, index: true },
+  codeHash: String,
+  attempts: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now, expires: 300 },
+}));
+
+// In-app messages for a customer. Deleted automatically after 30 days.
+export const Notification = model('Notification', new Schema({
+  user: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+  kind: String,      // booked, cancelled, deposit, reminder, turn, next
+  title: String,
+  body: String,
+  read: { type: Boolean, default: false },
+  createdAt: { type: Date, default: Date.now, expires: 30 * 24 * 3600 },
+}));

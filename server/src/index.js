@@ -11,7 +11,8 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import { Server } from 'socket.io';
-import { auth } from './middleware.js';
+import jwt from 'jsonwebtoken';
+import { auth, COOKIE } from './middleware.js';
 import { Block, User, Otp, Appointment } from './models.js';
 import { snapshot } from './lib/queue.js';
 import { seedIfEmpty } from './lib/bootstrap.js';
@@ -19,6 +20,11 @@ import authRoutes from './routes/auth.js';
 import catalogRoutes from './routes/catalog.js';
 import apptRoutes from './routes/appointments.js';
 import queueRoutes from './routes/queue.js';
+import { waAuth, waHook } from './routes/whatsapp.js';
+import emailAuth from './routes/emailAuth.js';
+import notifRoutes from './routes/notifications.js';
+import pushRoutes from './routes/push.js';
+import { startReminders } from './lib/reminders.js';
 
 // Only needed if your network cannot resolve mongodb+srv:// addresses. Set DNS_SERVERS=1.1.1.1,8.8.8.8 in .env
 if (process.env.DNS_SERVERS) dns.setServers(process.env.DNS_SERVERS.split(','));
@@ -41,12 +47,18 @@ app.use(helmet({
   },
 }));
 app.use(cors({ origin, credentials: true }));
-app.use(express.json({ limit: '50kb' }));
+// rawBody is kept so the WhatsApp webhook signature can be checked
+app.use(express.json({ limit: '50kb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
 app.use(auth);
 app.get('/api/health', (_req, res) => res.json({ ok: true })); // Render checks this to know the app is up
 app.use('/api', rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: true, legacyHeaders: false }));
 
+app.use('/api/auth/wa', waAuth);
+app.use('/api/auth/email', emailAuth);
+app.use('/api/notifications', notifRoutes);
+app.use('/api/push', pushRoutes);
+app.use('/api/webhooks/whatsapp', waHook);
 app.use('/api/auth', authRoutes);
 app.use('/api', catalogRoutes);
 app.use('/api/appointments', apptRoutes);
@@ -65,10 +77,16 @@ if (fs.existsSync(dist)) {
 
 app.use((err, _req, res, _next) => { console.error(err); res.status(500).json({ error: 'Something went wrong.' }); });
 
-io.on('connection', async (socket) => { socket.emit('queue', await snapshot()); });
+// Everyone gets the live queue. Signed-in customers also join a private room for their own messages.
+io.on('connection', async (socket) => {
+  const m = new RegExp('(?:^|;\\s*)' + COOKIE + '=([^;]+)').exec(socket.handshake.headers.cookie || '');
+  if (m) { try { socket.join('user:' + jwt.verify(decodeURIComponent(m[1]), process.env.JWT_SECRET).id); } catch { /* not signed in */ } }
+  socket.emit('queue', await snapshot());
+});
 
 await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/salon');
 await Promise.all([Block.init(), User.init(), Otp.init(), Appointment.init()]); // make sure the unique indexes exist
 await seedIfEmpty(); // first start: creates the admin, sample services and stylists
 const port = process.env.PORT || 4000;
 server.listen(port, () => console.log(`API and live board running on port ${port}`));
+startReminders(app);

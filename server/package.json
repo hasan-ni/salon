@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "vapid": "web-push generate-vapid-keys"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -18,6 +19,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.7.0",
     "socket.io": "^4.8.0",
+    "web-push": "^3.6.7",
     "zod": "^3.23.8"
   }
 }
