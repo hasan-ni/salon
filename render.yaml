@@ -20,7 +20,7 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
-      - key: TZ
+      - key: SALON_TZ
         sync: false               # the salon's timezone, for example Indian/Maldives or Europe/London
       - key: SHOW_DEV_CODE
         value: "true"             # demo only: shows sign-in codes on screen. Remove once SMS works.

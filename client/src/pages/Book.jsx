@@ -3,12 +3,13 @@ import { useLocation } from 'react-router-dom';
 import { api } from '../api.js';
 import { socket } from '../socket.js';
 import { useQueue } from '../useQueue.js';
+import { useClock } from '../useClock.js';
 import { dayList, fmt, iso, longDate, tok } from '../util.js';
 
-const firstOpenDay = () => iso(dayList().find((d) => d.getDay() !== 0));
 
 export default function Book() {
   const q = useQueue();
+  const clock = useClock();
   const pre = useLocation().state || {};        // set by the home page: { serviceId, stylistId }
   const [services, setServices] = useState([]), [stylists, setStylists] = useState([]);
   const [svc, setSvc] = useState(null), [sty, setSty] = useState(pre.stylistId || 'any'), [date, setDate] = useState(null);
@@ -19,7 +20,7 @@ export default function Book() {
     api('/services').then((list) => { setServices(list); const s = list.find((x) => x._id === pre.serviceId); if (s) setSvc(s); });
     api('/stylists').then(setStylists);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (svc && !date) setDate(firstOpenDay()); }, [svc, date]);
+  useEffect(() => { if (svc && !date && clock) setDate(iso(dayList(14, clock.today).find((d) => d.getDay() !== 0))); }, [svc, date, clock]);
 
   const loadMine = useCallback(() => api('/appointments/mine').then(setMine).catch(() => {}), []);
   const loadSlots = useCallback(() => {
@@ -28,7 +29,7 @@ export default function Book() {
   }, [svc, sty, date]);
 
   useEffect(() => { loadMine(); }, [loadMine, q.serving, q.waiting]);
-  useEffect(() => { loadSlots(); }, [loadSlots]);
+  useEffect(() => { loadSlots(); }, [loadSlots, clock?.minutes]);   // re-check every minute so past times disappear
   useEffect(() => { socket.on('slots', loadSlots); return () => socket.off('slots', loadSlots); }, [loadSlots]);
 
   const book = async () => {
@@ -92,7 +93,7 @@ export default function Book() {
       </section>
 
       <section className={'step' + (svc ? '' : ' off')}><h2><span className="num">3</span>Pick a day and time</h2>
-        <div className="days">{dayList().map((d) => {
+        <div className="days">{dayList(14, clock?.today).map((d) => {
           const k = iso(d), sun = d.getDay() === 0;
           return (
             <button key={k} className="day" disabled={sun} aria-pressed={date === k} onClick={() => { setDate(k); setTime(null); }}>

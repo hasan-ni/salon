@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { useQueue } from '../useQueue.js';
-import { fmt, iso, tok } from '../util.js';
+import { useClock } from '../useClock.js';
+import { dayList, fmt, iso, tok } from '../util.js';
 
 // Opening hours, by day of week (0 = Sunday). Keep in step with OPEN and CLOSE in server/src/config.js.
 const HOURS = [null, [540, 1080], [540, 1080], [540, 1080], [540, 1080], [540, 1080], [540, 1080]];
@@ -13,20 +14,21 @@ const categoryOf = (s) => /colou?r|highlight/i.test(s.name) ? 'Colour' : /cut|tr
 const CATEGORIES = ['All', 'Cuts', 'Colour', 'Care'];
 const initials = (n) => n.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 
-function openNow() {
-  const d = new Date(), h = HOURS[d.getDay()], m = d.getHours() * 60 + d.getMinutes();
-  return !!h && m >= h[0] && m < h[1];
+// Uses the salon's own clock from the server, not the visitor's device time.
+function isOpen(c) {
+  if (!c) return false;
+  const h = HOURS[c.dow];
+  return !!h && c.minutes >= h[0] && c.minutes < h[1];
 }
-function whenLabel(date) {
-  const today = iso(), t = new Date(); t.setDate(t.getDate() + 1);
+function whenLabel(date, today) {
   if (date === today) return 'Today';
-  if (date === iso(t)) return 'Tomorrow';
+  if (today && date === iso(dayList(2, today)[1])) return 'Tomorrow';
   return new Date(date + 'T00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
 }
 // Looks up to a week ahead for the first open time for a service.
-async function nextFree(svc, stylist = 'any') {
+async function nextFree(svc, today, stylist = 'any') {
   for (let i = 0; i < 8; i++) {
-    const d = new Date(); d.setDate(d.getDate() + i);
+    const d = dayList(8, today)[i];
     if (d.getDay() === 0) continue;
     try {
       const slots = await api(`/appointments/availability?date=${iso(d)}&serviceId=${svc._id}&stylistId=${stylist}`);
@@ -42,20 +44,20 @@ export default function Home() {
   const nav = useNavigate();
   const [services, setServices] = useState([]), [stylists, setStylists] = useState([]);
   const [cat, setCat] = useState('All'), [sel, setSel] = useState(null), [free, setFree] = useState(undefined);
-  const [open, setOpen] = useState(openNow());
+  const clock = useClock();
+  const open = isOpen(clock);
 
   useEffect(() => { api('/services').then(setServices).catch(() => {}); api('/stylists').then(setStylists).catch(() => {}); }, []);
-  useEffect(() => { const t = setInterval(() => setOpen(openNow()), 60000); return () => clearInterval(t); }, []);
   useEffect(() => {
-    if (!sel) return;
+    if (!sel || !clock) return;
     let live = true; setFree(undefined);
-    nextFree(sel).then((r) => live && setFree(r));
+    nextFree(sel, clock.today).then((r) => live && setFree(r));
     return () => { live = false; };
-  }, [sel]);
+  }, [sel, clock?.today]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shown = services.filter((s) => cat === 'All' || categoryOf(s) === cat);
   const book = (state) => nav('/book', { state });
-  const todayIdx = new Date().getDay();
+  const todayIdx = clock ? clock.dow : new Date().getDay();
 
   return (
     <>
@@ -107,7 +109,7 @@ export default function Home() {
                   <div><dt>Duration</dt><dd>{sel.minutes} min</dd></div>
                   <div><dt>Price</dt><dd>${sel.price}</dd></div>
                   <div><dt>Deposit</dt><dd>{sel.deposit ? `$${sel.deposit} to confirm` : 'None'}</dd></div>
-                  <div><dt>Next free</dt><dd>{free === undefined ? 'Checking…' : free ? `${whenLabel(free.date)} at ${fmt(free.start)}` : 'Nothing this week'}</dd></div>
+                  <div><dt>Next free</dt><dd>{free === undefined ? 'Checking…' : free ? `${whenLabel(free.date, clock?.today)} at ${fmt(free.start)}` : 'Nothing this week'}</dd></div>
                 </dl>
                 <button className="cta" onClick={() => book({ serviceId: sel._id })}>Book {sel.name.toLowerCase()}</button>
               </>

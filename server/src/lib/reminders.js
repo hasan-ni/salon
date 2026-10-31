@@ -1,5 +1,5 @@
 import { Appointment } from '../models.js';
-import { isoDate } from '../config.js';
+import { isoDate, nowMinutes } from '../config.js';
 import { notify, fmt, tok } from './notify.js';
 
 // Runs every 10 minutes. Sends each customer a reminder the day before (from 09:00) and
@@ -8,7 +8,7 @@ import { notify, fmt, tok } from './notify.js';
 export function startReminders(app) {
   const run = async () => {
     try {
-      const now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
+      const now = new Date(), nowMin = nowMinutes();
       const tm = new Date(now); tm.setDate(tm.getDate() + 1);
       const line = (a) => `${a.service?.name || 'Your appointment'} with ${a.stylist?.name || 'your stylist'} at ${fmt(a.start)} (token ${tok(a.token)}).` +
         (a.depositAmount && !a.depositPaid ? ` A deposit of $${a.depositAmount} is still due.` : '');
