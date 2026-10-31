@@ -149,3 +149,6 @@ nav a,.opt,.day,.slot,.svc,.chips button,.ghost,.cta{transition:background-color
 .alerts{padding:10px 0;font-size:.9rem;display:flex;flex-direction:column;gap:6px;border-bottom:1px solid var(--line)}
 .alerts:empty{display:none}
 .link{background:none;border:0;padding:0;color:var(--accent);font:inherit;text-decoration:underline;cursor:pointer}
+
+.sgroup{margin-top:12px}
+.sgroup .label{margin:0 0 6px;font-weight:600}

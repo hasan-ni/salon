@@ -5,8 +5,7 @@ import { useQueue } from '../useQueue.js';
 import { useClock } from '../useClock.js';
 import { dayList, fmt, iso, tok } from '../util.js';
 
-// Opening hours, by day of week (0 = Sunday). Keep in step with OPEN and CLOSE in server/src/config.js.
-const HOURS = [null, [540, 1080], [540, 1080], [540, 1080], [540, 1080], [540, 1080], [540, 1080]];
+// Opening hours come from the server (SESSIONS in server/src/config.js).
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const ORDER = [1, 2, 3, 4, 5, 6, 0];
 
@@ -17,8 +16,7 @@ const initials = (n) => n.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpp
 // Uses the salon's own clock from the server, not the visitor's device time.
 function isOpen(c) {
   if (!c) return false;
-  const h = HOURS[c.dow];
-  return !!h && c.minutes >= h[0] && c.minutes < h[1];
+  return !c.closed.includes(c.dow) && c.sessions.some(([a, b]) => c.minutes >= a && c.minutes < b);
 }
 function whenLabel(date, today) {
   if (date === today) return 'Today';
@@ -29,7 +27,6 @@ function whenLabel(date, today) {
 async function nextFree(svc, today, stylist = 'any') {
   for (let i = 0; i < 8; i++) {
     const d = dayList(8, today)[i];
-    if (d.getDay() === 0) continue;
     try {
       const slots = await api(`/appointments/availability?date=${iso(d)}&serviceId=${svc._id}&stylistId=${stylist}`);
       const f = slots.find((x) => x.ok);
@@ -147,7 +144,7 @@ export default function Home() {
             {ORDER.map((d) => (
               <tr key={d} className={d === todayIdx ? 'today' : ''}>
                 <th scope="row">{DAY_NAMES[d]}</th>
-                <td>{HOURS[d] ? `${fmt(HOURS[d][0])} – ${fmt(HOURS[d][1])}` : 'Closed'}</td>
+                <td>{!clock ? '—' : clock.closed.includes(d) ? 'Closed' : clock.sessions.map(([a, b]) => `${fmt(a)} – ${fmt(b)}`).join(', ')}</td>
               </tr>
             ))}
           </tbody>

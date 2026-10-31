@@ -1,6 +1,12 @@
 // Opening hours and rules. Times are minutes after midnight.
-export const OPEN = 9 * 60;      // 09:00
-export const CLOSE = 18 * 60;    // 18:00
+// Opening sessions every day, as [from, to] in minutes after midnight. Edit these to change the hours.
+// Now: 09:00-12:00, 14:00-18:00 and 20:00-22:00.
+export const SESSIONS = [[9 * 60, 12 * 60], [14 * 60, 18 * 60], [20 * 60, 22 * 60]];
+export const CLOSED_DAYS = [];   // days of the week the salon is closed: 0 = Sunday ... 6 = Saturday, e.g. [0]
+export const OPEN = SESSIONS[0][0];
+export const CLOSE = SESSIONS[SESSIONS.length - 1][1];
+// A service fits only if it starts and finishes inside one session.
+export const fitsHours = (start, dur) => SESSIONS.some(([a, b]) => start >= a && start + dur <= b);
 export const STEP = 30;          // booking block size in minutes
 export const DEP_MIN = 120;      // services this long (minutes) or longer need a deposit
 export const DEP_PCT = 0.3;      // deposit as a share of the price

@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Appointment, Block, Counter, Service, Stylist, User } from '../models.js';
 import { need } from '../middleware.js';
-import { OPEN, CLOSE, STEP, DEP_MIN, DEP_PCT, MAX_DAYS_AHEAD, isoDate, validDate, isSunday, nowMinutes, daysFromToday } from '../config.js';
+import { SESSIONS, CLOSED_DAYS, fitsHours, STEP, DEP_MIN, DEP_PCT, MAX_DAYS_AHEAD, isoDate, validDate, nowMinutes, daysFromToday } from '../config.js';
 import { todayQueue, eta, broadcast } from '../lib/queue.js';
 import { notify, notifyStaff, fmt, tok, longDate } from '../lib/notify.js';
 
@@ -20,7 +20,7 @@ const poolFor = (stylistId) =>
   stylistId === 'any' ? Stylist.find().sort({ _id: 1 }).lean() : oid(stylistId) ? Stylist.find({ _id: stylistId }).lean() : [];
 const dateError = (date) => {
   if (!validDate(date)) return 'Invalid date.';
-  if (isSunday(date)) return 'We are closed on Sundays.';
+  if (CLOSED_DAYS.includes(new Date(date + 'T00:00:00').getDay())) return 'We are closed that day.';
   const d = daysFromToday(date);
   if (d < 0) return 'That day has passed.';
   if (d > MAX_DAYS_AHEAD) return `Bookings open ${MAX_DAYS_AHEAD} days ahead.`;
@@ -53,7 +53,7 @@ r.get('/availability', async (req, res) => {
   if (!svc) return res.status(404).json({ error: 'Service not found.' });
   const [pool, taken] = await Promise.all([poolFor(String(stylistId)), takenSet(date)]);
   const today = date === isoDate(), now = nowMinutes(), out = [];
-  for (let m = OPEN; m + svc.minutes <= CLOSE; m += STEP) {
+  for (const [from, to] of SESSIONS) for (let m = from; m + svc.minutes <= to; m += STEP) {
     out.push({ start: m, ok: !(today && m <= now) && freeStylists(pool, m, svc.minutes, taken).length > 0 });
   }
   res.json(out);
@@ -73,7 +73,7 @@ r.post('/', need(), async (req, res) => {
   if (!oid(serviceId)) return res.status(400).json({ error: 'Choose a service.' });
   const svc = await Service.findById(serviceId).lean();
   if (!svc) return res.status(404).json({ error: 'Service not found.' });
-  if (start % STEP || start < OPEN || start + svc.minutes > CLOSE) return res.status(400).json({ error: 'Outside opening hours.' });
+  if (start % STEP || !fitsHours(start, svc.minutes)) return res.status(400).json({ error: 'Outside opening hours.' });
   if (date === isoDate() && start <= nowMinutes()) return res.status(400).json({ error: 'That time has passed.' });
   const pool = await poolFor(stylistId);
   if (!pool.length) return res.status(400).json({ error: 'Stylist not found.' });

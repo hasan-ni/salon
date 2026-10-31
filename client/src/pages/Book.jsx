@@ -20,7 +20,7 @@ export default function Book() {
     api('/services').then((list) => { setServices(list); const s = list.find((x) => x._id === pre.serviceId); if (s) setSvc(s); });
     api('/stylists').then(setStylists);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (svc && !date && clock) setDate(iso(dayList(14, clock.today).find((d) => d.getDay() !== 0))); }, [svc, date, clock]);
+  useEffect(() => { if (svc && !date && clock) setDate(iso(dayList(14, clock.today).find((d) => !clock.closed.includes(d.getDay())))); }, [svc, date, clock]);
 
   const loadMine = useCallback(() => api('/appointments/mine').then(setMine).catch(() => {}), []);
   const loadSlots = useCallback(() => {
@@ -94,7 +94,7 @@ export default function Book() {
 
       <section className={'step' + (svc ? '' : ' off')}><h2><span className="num">3</span>Pick a day and time</h2>
         <div className="days">{dayList(14, clock?.today).map((d) => {
-          const k = iso(d), sun = d.getDay() === 0;
+          const k = iso(d), sun = (clock?.closed || []).includes(d.getDay());
           return (
             <button key={k} className="day" disabled={sun} aria-pressed={date === k} onClick={() => { setDate(k); setTime(null); }}>
               <small>{d.toLocaleDateString('en-GB', { weekday: 'short' })}</small><strong>{d.getDate()}</strong><small>{d.toLocaleDateString('en-GB', { month: 'short' })}</small>
@@ -102,7 +102,10 @@ export default function Book() {
         })}</div>
         {svc && date
           ? (anyOpen
-            ? <div className="slots">{slots.map((s) => <button key={s.start} className="slot" disabled={!s.ok} aria-pressed={time === s.start} onClick={() => setTime(s.start)}>{fmt(s.start)}</button>)}</div>
+            ? <div>{[['Morning', 0, 720], ['Afternoon', 720, 1080], ['Evening', 1080, 1440]].map(([label, a, b]) => {
+              const g = slots.filter((s) => s.start >= a && s.start < b);
+              return g.length ? <div className="sgroup" key={label}><p className="label">{label}</p><div className="slots">{g.map((s) => <button key={s.start} className="slot" disabled={!s.ok} aria-pressed={time === s.start} onClick={() => setTime(s.start)}>{fmt(s.start)}</button>)}</div></div> : null;
+            })}</div>
             : <p className="muted">No times left on this day. Try another day or stylist.</p>)
           : <p className="muted">Choose a service, then a day to see open times.</p>}
       </section>
