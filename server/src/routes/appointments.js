@@ -161,4 +161,13 @@ r.patch('/:id/deposit-paid', need('staff', 'admin'), async (req, res) => {
   res.json({ ok: true });
 });
 
+// Staff: finish a job. Also lets the last customer be marked done when nobody is left to call.
+r.patch('/:id/done', need('staff', 'admin'), async (req, res) => {
+  if (!oid(req.params.id)) return res.status(404).json({ error: 'Not found.' });
+  const a = await Appointment.findOneAndUpdate({ _id: req.params.id, status: { $in: ['booked', 'serving'] } }, { status: 'done' }, { new: true });
+  if (!a) return res.status(409).json({ error: 'That appointment is already finished or cancelled.' });
+  await broadcast(req.app, a.date);
+  res.json({ ok: true });
+});
+
 export default r;

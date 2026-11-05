@@ -152,3 +152,12 @@ nav a,.opt,.day,.slot,.svc,.chips button,.ghost,.cta{transition:background-color
 
 .sgroup{margin-top:12px}
 .sgroup .label{margin:0 0 6px;font-weight:600}
+
+/* ---------- Job status colours on the Staff page ---------- */
+.appt.done{background:color-mix(in srgb,var(--ok) 12%,var(--surface));border-radius:10px;padding-left:10px;padding-right:10px}
+.appt.done .t,.appt.done .m strong{color:var(--ok)}
+.appt.serving{background:var(--soft);border-radius:10px;padding-left:10px;padding-right:10px;box-shadow:inset 3px 0 0 var(--accent)}
+.st{font-style:normal;font-weight:600;padding:1px 8px;border-radius:999px;background:var(--line);color:var(--ink)}
+.st.done{background:var(--ok);color:var(--accent-ink)}
+.st.serving{background:var(--accent);color:var(--accent-ink)}
+.rowbtn{width:auto!important;margin:0!important;padding:8px 16px!important;font-size:.9rem!important}
