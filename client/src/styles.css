@@ -161,3 +161,31 @@ nav a,.opt,.day,.slot,.svc,.chips button,.ghost,.cta{transition:background-color
 .st.done{background:var(--ok);color:var(--accent-ink)}
 .st.serving{background:var(--accent);color:var(--accent-ink)}
 .rowbtn{width:auto!important;margin:0!important;padding:8px 16px!important;font-size:.9rem!important}
+
+/* ---------- Home page improvements ---------- */
+.hero .pill{margin-bottom:2px}
+.busy{color:var(--ink)}
+.daybar{margin-top:26px;max-width:420px}
+.track{position:relative;height:10px;border-radius:999px;background:rgba(128,128,128,.3);margin:14px 0 8px}
+.seg{position:absolute;top:0;bottom:0;border-radius:999px;background:var(--accent)}
+.now{position:absolute;top:-5px;width:4px;height:20px;border-radius:2px;background:var(--bg);box-shadow:0 0 0 2px var(--ink);transform:translateX(-50%)}
+.ticks{display:flex;justify-content:space-between;gap:8px;font-size:.8rem;opacity:.85}
+.chips button[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.detail .label{margin:0 0 6px}
+.detail .chips{margin-bottom:10px}
+.tag{display:inline-block;margin-left:8px;padding:1px 8px;border-radius:999px;background:var(--soft);color:var(--accent);font-size:.72rem;font-weight:700;vertical-align:middle}
+.skeleton{height:56px;background:var(--line);border:0;animation:fade 1.4s ease-in-out infinite}
+@keyframes fade{0%,100%{opacity:.45}50%{opacity:1}}
+.faq details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:0 16px;margin-bottom:8px}
+.faq summary{cursor:pointer;padding:14px 0;font-weight:600;list-style:none}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:'+';float:right;color:var(--accent);font-weight:700}
+.faq details[open] summary::after{content:'–'}
+.faq p{margin:0 0 14px;color:var(--muted)}
+.contact{display:flex;flex-wrap:wrap;gap:10px}
+.mobilebar{display:none}
+@media(max-width:800px){
+  .mobilebar{display:block;position:fixed;left:0;right:0;bottom:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line);z-index:15}
+  .mobilebar .cta{margin:0}
+  .wrap.wide{padding-bottom:96px}
+}
