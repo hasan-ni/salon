@@ -221,7 +221,6 @@ export default function Home() {
         <button className="cta wide-btn" onClick={() => book()}>Book an appointment</button>
       </section>
 
-      <div className="mobilebar"><button className="cta" onClick={() => book()}>Book an appointment</button></div>
     </>
   );
 }

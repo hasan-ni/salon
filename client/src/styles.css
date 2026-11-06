@@ -191,3 +191,64 @@ nav a,.opt,.day,.slot,.svc,.chips button,.ghost,.cta{transition:background-color
 }
 
 .editing{margin-bottom:14px}
+
+/* ---------- App-like layout on phones ---------- */
+html{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}
+.bottomnav{display:none}
+.bell-icon{vertical-align:-4px}
+.bell-icon+.bell-label{margin-left:6px}
+.profile{display:flex;align-items:center;gap:16px}
+.profile h2{margin:0}.profile p{margin:0}
+.big-avatar{width:64px;height:64px;font-size:1.3rem;flex:none}
+.signout{width:100%}
+button:active:not(:disabled),a.ghost:active,.opt:active,.svc:active{transform:scale(.98)}
+
+@media (max-width:720px){
+  .wrap,.wrap.wide{padding:0 14px calc(88px + env(safe-area-inset-bottom,0px))}
+  header{position:sticky;top:0;z-index:20;margin:0 -14px 14px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;background:var(--bg);border-bottom:1px solid var(--line);flex-wrap:nowrap}
+  header h1{font-size:1.25rem}
+  .navlink,.bell-label{display:none}
+  .bell .ghost{padding:8px 12px}
+
+  .bottomnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -4px 16px rgba(42,27,61,.08)}
+  .bottomnav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px 10px;min-height:64px;color:var(--muted);text-decoration:none;font-size:.75rem;font-weight:600}
+  .bottomnav .ic{display:grid;place-items:center;padding:4px 22px;border-radius:16px;transition:background-color .2s}
+  .bottomnav a,.bottomnav a.active{background:none;border-radius:0}   /* undo the top-bar link style */
+  .bottomnav a.active{color:var(--ink)}
+  .bottomnav a.active .ic{background:var(--soft);color:var(--accent)}
+
+  /* comfortable touch targets, and 16px text so the phone doesn't zoom into fields */
+  button,.ghost,.cta,a.ghost{min-height:44px}
+  .sm,.ghost.sm{min-height:40px;padding:8px 14px!important}
+  input{font-size:16px;min-height:48px;padding:12px 14px}
+  .opt,.svc{min-height:56px}
+  .slot{min-height:46px}
+  .slots{grid-template-columns:repeat(auto-fill,minmax(72px,1fr))}
+  .days{scroll-snap-type:x proximity;margin-right:-14px;padding-right:14px}
+  .day{scroll-snap-align:start;min-width:64px;min-height:72px}
+  .step{padding:16px;border-radius:16px}
+  .grid{grid-template-columns:1fr}
+  .team{grid-template-columns:1fr}
+  .detail{position:static}
+  .hero{padding:20px;border-radius:20px}
+  .seg-wrap{margin-bottom:12px}
+
+  .confirm{bottom:calc(72px + env(safe-area-inset-bottom,0px));border-radius:16px;padding:12px 14px}
+  .confirm .err:empty{display:none}
+  .confirm .sum{font-size:.92rem;margin-bottom:8px}
+  .toast{left:12px;right:12px;max-width:none;bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+  .panel{position:fixed;left:0;right:0;top:auto;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:auto;max-height:70vh;border-radius:20px 20px 0 0;padding:14px 18px 8px;box-shadow:0 -8px 30px rgba(42,27,61,.25)}
+  .panel::before{content:'';display:block;width:40px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 10px}
+
+  .board{padding:12px 16px}
+  .board .btns{margin-left:0;width:100%}
+  .board .btns>*{flex:1}
+  .toolbar{flex-wrap:wrap}
+  .toolbar input{max-width:none;flex:1}
+  .appt{flex-wrap:wrap}
+  .appt .m{flex:1 1 calc(100% - 80px)}
+  .appt>button{flex:1 1 100%}
+  .acts>*{flex:1 1 auto;text-align:center}
+  .mobilebar{display:none!important}
+}
