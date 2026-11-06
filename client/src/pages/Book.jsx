@@ -5,7 +5,7 @@ import { socket } from '../socket.js';
 import { useQueue } from '../useQueue.js';
 import { useClock } from '../useClock.js';
 import { dayList, fmt, iso, longDate, tok } from '../util.js';
-
+const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 864e5);
 
 export default function Book() {
   const q = useQueue();
@@ -15,6 +15,7 @@ export default function Book() {
   const [svc, setSvc] = useState(null), [sty, setSty] = useState(pre.stylistId || 'any'), [date, setDate] = useState(null);
   const [slots, setSlots] = useState([]), [time, setTime] = useState(null);
   const [mine, setMine] = useState([]), [done, setDone] = useState(null), [err, setErr] = useState(''), [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(null);   // the booking being changed, if any
 
   useEffect(() => {
     api('/services').then((list) => { setServices(list); const s = list.find((x) => x._id === pre.serviceId); if (s) setSvc(s); });
@@ -25,8 +26,8 @@ export default function Book() {
   const loadMine = useCallback(() => api('/appointments/mine').then(setMine).catch(() => {}), []);
   const loadSlots = useCallback(() => {
     if (!svc || !date) return setSlots([]);
-    api(`/appointments/availability?date=${date}&serviceId=${svc._id}&stylistId=${sty}`).then(setSlots).catch((e) => setErr(e.message));
-  }, [svc, sty, date]);
+    api(`/appointments/availability?date=${date}&serviceId=${svc._id}&stylistId=${sty}${editing ? `&exclude=${editing._id}` : ''}`).then(setSlots).catch((e) => setErr(e.message));
+  }, [svc, sty, date, editing]);
 
   useEffect(() => { loadMine(); }, [loadMine, q.serving, q.waiting]);
   useEffect(() => { loadSlots(); }, [loadSlots, clock?.minutes]);   // re-check every minute so past times disappear
@@ -35,16 +36,24 @@ export default function Book() {
   const book = async () => {
     setBusy(true); setErr('');
     try {
-      const a = await api('/appointments', { method: 'POST', body: { date, start: time, serviceId: svc._id, stylistId: sty } });
-      setDone(a); setTime(null); loadMine();
+      const body = { date, start: time, serviceId: svc._id, stylistId: sty };
+      const a = editing ? await api(`/appointments/${editing._id}`, { method: 'PATCH', body }) : await api('/appointments', { method: 'POST', body });
+      setDone({ ...a, updated: !!editing }); setEditing(null); setTime(null); loadMine();
     } catch (e) { setErr(e.message); setTime(null); loadSlots(); }
     finally { setBusy(false); }
   };
   const cancel = async (id) => { if (confirm('Cancel this appointment?')) { await api(`/appointments/${id}/cancel`, { method: 'PATCH' }); loadMine(); loadSlots(); } };
 
+  const startEdit = (a) => {
+    setEditing(a); setDone(null); setErr('');
+    setSvc(services.find((s) => s._id === a.service?._id) || null); setSty(a.stylist?._id || 'any'); setDate(a.date); setTime(a.start);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const cancelEdit = () => { setEditing(null); setSvc(null); setSty('any'); setDate(null); setTime(null); setErr(''); };
+
   if (done) return (
     <section className="step done">
-      <h2>You’re booked</h2>
+      <h2>{done.updated ? 'Booking updated' : 'You’re booked'}</h2>
       <p className="label">Your token for {longDate(done.date)}</p>
       <div className="token">{tok(done.token)}</div>
       <p>{done.serviceName} with {done.stylistName}<br /><strong>{longDate(done.date)} at {fmt(done.start)}</strong></p>
@@ -64,16 +73,27 @@ export default function Book() {
 
       {mine.length > 0 && (
         <section className="step"><h2>Your bookings</h2>
-          {mine.map((a) => (
+          {mine.map((a) => {
+            const canEdit = a.status === 'booked' && clock && daysBetween(clock.today, a.date) * 1440 + a.start - clock.minutes >= (clock.editCutoff ?? 60);
+            return (
             <div className="mine" key={a._id}>
               <b>{tok(a.token)}</b>
               <span>{a.serviceName} · {longDate(a.date)} at {fmt(a.start)}
                 {a.status === 'serving' ? ' · Your turn' : a.ahead === 0 ? ' · You’re next' : a.ahead > 0 ? ` · ${a.ahead} ahead · about ${a.etaMin} min` : ''}
                 {a.depositAmount > 0 ? (a.depositPaid ? ' · Deposit paid' : ` · Deposit $${a.depositAmount} due`) : ''}</span>
+              {canEdit && <button className="ghost sm" onClick={() => startEdit(a)}>Change</button>}
               <button className="ghost sm" onClick={() => cancel(a._id)}>Cancel</button>
             </div>
-          ))}
+            );
+          })}
         </section>
+      )}
+
+      {editing && (
+        <div className="note editing" role="status">
+          <b>Changing your booking:</b> {editing.serviceName} on {longDate(editing.date)} at {fmt(editing.start)}. Pick a new service, stylist, day or time, then save.{' '}
+          <button className="link" onClick={cancelEdit}>Never mind</button>
+        </div>
       )}
 
       <section className="step"><h2><span className="num">1</span>What are you booking?</h2>
@@ -115,7 +135,7 @@ export default function Book() {
           {time ? <><b>{svc.name}</b> with {styName}<br />{longDate(date)} at {fmt(time)} · ${svc.price}{svc.deposit ? ` · $${svc.deposit} deposit` : ''}</> : 'Choose a service, a stylist and a time to continue.'}
         </p>
         <p className="err" role="alert">{err}</p>
-        <button className="cta" disabled={!time || busy} onClick={book}>{busy ? 'Booking…' : 'Confirm booking'}</button>
+        <button className="cta" disabled={!time || busy} onClick={book}>{busy ? 'Saving…' : editing ? 'Save changes' : 'Confirm booking'}</button>
       </div>
     </>
   );

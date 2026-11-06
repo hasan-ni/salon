@@ -11,6 +11,7 @@ export const STEP = 30;          // booking block size in minutes
 export const DEP_MIN = 120;      // services this long (minutes) or longer need a deposit
 export const DEP_PCT = 0.3;      // deposit as a share of the price
 export const MAX_DAYS_AHEAD = 30;
+export const EDIT_CUTOFF_MIN = 60;  // customers can change a booking until this many minutes before it starts
 
 // The salon's timezone. The server (for example on Render) usually runs on UTC, so "today",
 // "now" and opening hours must be worked out in the salon's own timezone, not the server's.

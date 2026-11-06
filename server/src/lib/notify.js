@@ -8,7 +8,7 @@ export const tok = (n) => 'T-' + String(n || 0).padStart(3, '0');
 export const longDate = (s) => new Date(s + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
 // These messages are also emailed, when the customer signed up with an email address.
-const EMAIL_KINDS = new Set(['booked', 'cancelled', 'reminder', 'deposit']);
+const EMAIL_KINDS = new Set(['booked', 'changed', 'cancelled', 'reminder', 'deposit']);
 
 // Saves an in-app message and pushes it live to that customer's open pages.
 export async function notify(app, userId, { kind, title, body }) {

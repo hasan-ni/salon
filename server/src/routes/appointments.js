@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { z } from 'zod';
 import { Appointment, Block, Counter, Service, Stylist, User } from '../models.js';
 import { need } from '../middleware.js';
-import { SESSIONS, CLOSED_DAYS, fitsHours, STEP, DEP_MIN, DEP_PCT, MAX_DAYS_AHEAD, isoDate, validDate, nowMinutes, daysFromToday } from '../config.js';
+import { SESSIONS, CLOSED_DAYS, fitsHours, STEP, DEP_MIN, DEP_PCT, MAX_DAYS_AHEAD, EDIT_CUTOFF_MIN, isoDate, validDate, nowMinutes, daysFromToday } from '../config.js';
 import { todayQueue, eta, broadcast } from '../lib/queue.js';
 import { notify, notifyStaff, fmt, tok, longDate } from '../lib/notify.js';
 
@@ -12,8 +12,9 @@ const oid = mongoose.isValidObjectId;
 const isStaff = (u) => ['staff', 'admin'].includes(u.role);
 
 const blocksFor = (start, dur) => { const a = []; for (let m = start; m < start + dur; m += STEP) a.push(m); return a; };
-const takenSet = async (date) =>
-  new Set((await Block.find({ date }).select('stylist block').lean()).map((b) => `${b.stylist}_${b.block}`));
+// exclude: ignore one appointment's own blocks, so it can be moved to a time that overlaps its old one
+const takenSet = async (date, exclude) =>
+  new Set((await Block.find({ date, ...(exclude ? { appointment: { $ne: exclude } } : {}) }).select('stylist block').lean()).map((b) => `${b.stylist}_${b.block}`));
 const freeStylists = (pool, start, dur, taken) =>
   pool.filter((s) => blocksFor(start, dur).every((m) => !taken.has(`${s._id}_${m}`)));
 const poolFor = (stylistId) =>
@@ -45,13 +46,18 @@ async function tryBlocks(stylist, date, start, dur, appointment) {
 
 // Public: which start times are open for a service, stylist and day.
 r.get('/availability', async (req, res) => {
-  const { date, serviceId, stylistId = 'any' } = req.query;
+  const { date, serviceId, stylistId = 'any', exclude } = req.query;
   const err = dateError(String(date));
   if (err) return res.status(400).json({ error: err });
   if (!oid(serviceId)) return res.status(400).json({ error: 'Choose a service.' });
   const svc = await Service.findById(serviceId).lean();
   if (!svc) return res.status(404).json({ error: 'Service not found.' });
-  const [pool, taken] = await Promise.all([poolFor(String(stylistId)), takenSet(date)]);
+  let ex = null; // when someone is changing their own booking, its current time counts as free for them
+  if (req.user && oid(exclude)) {
+    const own = await Appointment.findById(exclude).select('customer').lean();
+    if (own && (isStaff(req.user) || String(own.customer) === req.user.id)) ex = exclude;
+  }
+  const [pool, taken] = await Promise.all([poolFor(String(stylistId)), takenSet(date, ex)]);
   const today = date === isoDate(), now = nowMinutes(), out = [];
   for (const [from, to] of SESSIONS) for (let m = from; m + svc.minutes <= to; m += STEP) {
     out.push({ start: m, ok: !(today && m <= now) && freeStylists(pool, m, svc.minutes, taken).length > 0 });
@@ -131,6 +137,83 @@ r.get('/', need('staff', 'admin'), async (req, res) => {
   if (!validDate(date)) return res.status(400).json({ error: 'Invalid date.' });
   const list = await Appointment.find({ date, status: { $ne: 'cancelled' } }).sort({ start: 1 }).populate('service stylist').lean();
   res.json(list.map((a) => ({ ...a, serviceName: a.service?.name, stylistName: a.stylist?.name })));
+});
+
+const editSchema = z.object({ date: z.string(), start: z.number().int(), serviceId: z.string(), stylistId: z.string().default('any') });
+
+// Adds only the blocks a booking does not already own. All or nothing: if one is taken, the ones just added are removed.
+async function addBlocks(keys, appointment) {
+  if (!keys.length) return true;
+  try {
+    await Block.insertMany(keys.map((k) => ({ ...k, appointment })), { ordered: true });
+    return true;
+  } catch (e) {
+    await Block.deleteMany({ appointment, $or: keys });
+    if (e?.code === 11000 || e?.writeErrors?.length) return false;
+    throw e;
+  }
+}
+
+// Change a booking: new service, stylist, day or time. The new time is secured BEFORE the old one is released,
+// so a failed change never leaves the customer without their original slot.
+r.patch('/:id', need(), async (req, res) => {
+  if (!oid(req.params.id)) return res.status(404).json({ error: 'Not found.' });
+  const a = await Appointment.findById(req.params.id);
+  if (!a) return res.status(404).json({ error: 'Not found.' });
+  const staff = isStaff(req.user);
+  if (!staff && String(a.customer) !== req.user.id) return res.status(403).json({ error: 'Not allowed.' });
+  if (a.status !== 'booked') return res.status(409).json({ error: 'Only upcoming bookings can be changed.' });
+  if (!staff && daysFromToday(a.date) * 1440 + a.start - nowMinutes() < EDIT_CUTOFF_MIN) {
+    return res.status(409).json({ error: `Changes close ${EDIT_CUTOFF_MIN} minutes before your appointment. Please call the salon.` });
+  }
+  const p = editSchema.safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'Invalid booking.' });
+  const { date, start, serviceId, stylistId } = p.data;
+  const err = dateError(date);
+  if (err) return res.status(400).json({ error: err });
+  if (!oid(serviceId)) return res.status(400).json({ error: 'Choose a service.' });
+  const svc = await Service.findById(serviceId).lean();
+  if (!svc) return res.status(404).json({ error: 'Service not found.' });
+  if (start % STEP || !fitsHours(start, svc.minutes)) return res.status(400).json({ error: 'Outside opening hours.' });
+  if (date === isoDate() && start <= nowMinutes()) return res.status(400).json({ error: 'That time has passed.' });
+  if (a.depositPaid && String(a.service) !== String(svc._id)) return res.status(409).json({ error: 'Your deposit is paid, so the service can’t be changed here. Please call the salon.' });
+  const pool = await poolFor(stylistId);
+  if (!pool.length) return res.status(400).json({ error: 'Stylist not found.' });
+
+  const keyOf = (k) => `${k.stylist}_${k.date}_${k.block}`;
+  const oldKeys = blocksFor(a.start, a.dur).map((block) => ({ stylist: a.stylist, date: a.date, block }));
+  const oldSet = new Set(oldKeys.map(keyOf));
+  const same = (s) => String(s._id) === String(a.stylist);
+  const candidates = freeStylists(pool, start, svc.minutes, await takenSet(date, a._id)).sort((x, y) => Number(same(y)) - Number(same(x)));
+  let chosen = null, newKeys = [], added = [];
+  for (const s of candidates) {
+    newKeys = blocksFor(start, svc.minutes).map((block) => ({ stylist: s._id, date, block }));
+    added = newKeys.filter((k) => !oldSet.has(keyOf(k)));
+    if (await addBlocks(added, a._id)) { chosen = s; break; }
+  }
+  if (!chosen) return res.status(409).json({ error: 'That time was just taken. Pick another time.' });
+
+  const before = { date: a.date, start: a.start };
+  try {
+    let token = a.token;
+    if (date !== a.date) token = (await Counter.findOneAndUpdate({ _id: `token:${date}` }, { $inc: { seq: 1 } }, { upsert: true, new: true })).seq;
+    a.service = svc._id; a.stylist = chosen._id; a.date = date; a.start = start; a.dur = svc.minutes; a.token = token;
+    if (!a.depositPaid) a.depositAmount = svc.minutes >= DEP_MIN ? Math.round(svc.price * DEP_PCT) : 0;
+    a.remindDay = false; a.remindSoon = false;
+    await a.save();
+  } catch (e) {
+    if (added.length) await Block.deleteMany({ appointment: a._id, $or: added });
+    throw e;
+  }
+  const keep = new Set(newKeys.map(keyOf));
+  const stale = oldKeys.filter((k) => !keep.has(keyOf(k)));
+  if (stale.length) await Block.deleteMany({ appointment: a._id, $or: stale });
+
+  await broadcast(req.app, date);
+  if (before.date !== date) await broadcast(req.app, before.date);
+  if (a.customer) notify(req.app, a.customer, { kind: 'changed', title: 'Booking updated', body: `${svc.name} with ${chosen.name} is now on ${longDate(date)} at ${fmt(start)}. Your token is ${tok(a.token)}.` + (a.depositAmount && !a.depositPaid ? ` A deposit of $${a.depositAmount} is due.` : '') });
+  if (!staff) notifyStaff(req.app, { kind: 'staff-changed', title: 'Booking changed', body: `${a.customerName} moved from ${longDate(before.date)} at ${fmt(before.start)} to ${longDate(date)} at ${fmt(start)} (${svc.name}, token ${tok(a.token)}).` });
+  res.json({ ...a.toObject(), serviceName: svc.name, stylistName: chosen.name });
 });
 
 // Customers can cancel their own booking; staff can cancel any. Cancelling frees the time.
